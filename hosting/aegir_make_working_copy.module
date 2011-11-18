@@ -1,0 +1,106 @@
+<?php
+
+
+/**
+ * Implementation of hook_form_alter()
+ */
+function aegir_make_working_copy_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'platform_node_form') {
+
+    $form['aegir_make_working_copy'] = array(
+      '#type' => 'radios',
+      '#title' => t('Drush make option'),
+      '#default_value' => isset($form['#node']->aegir_make_working_copy) ? $form['#node']->aegir_make_working_copy : FALSE,
+      '#options' => array(
+        FALSE => t('Normal - Discards SCM files'),
+        TRUE => t('Working copy - preserves SCM files'),
+      ),
+      '#weight' => 2,
+    );
+    
+    $form['#after_build'][] = 'aegir_make_working_copy_form_after_build';
+    return $form;
+  }
+}
+
+function aegir_make_working_copy_form_after_build($form) {
+  
+  drupal_add_js(drupal_get_path('module', 'aegir_make_working_copy') . '/aegir_make_working_copy.js');
+  if (isset($form['makefile']['#attributes']['class'])) {
+    $form['makefile']['#attributes']['class'] .= ' aegir-make-working-copy-source';
+  }
+  else {
+    $form['makefile']['#attributes']['class'] = ' aegir-make-working-copy-source';
+  }
+  
+  if (isset($form['aegir_make_working_copy']['#attributes']['class'])) {
+    $form['aegir_make_working_copy']['#attributes']['class'] .= ' aegir-make-working-copy-target';
+  }
+  else {
+    $form['aegir_make_working_copy']['#attributes']['class'] = ' aegir-make-working-copy-target';
+  }
+  
+  return $form;
+}
+
+/**
+ * Implementation of hook_insert()
+ */
+function aegir_make_working_copy_insert($node) {
+  if (isset($node->aegir_make_working_copy)) {
+    db_query("INSERT INTO {aegir_make_working_copy} (vid, nid, workingcopy) VALUES (%d, %d, %d)", $node->vid, $node->nid, $node->aegir_make_working_copy);
+  }
+}
+
+/**
+ * Implementation of hook_update()
+ */
+function aegir_make_working_copy_update($node) {
+  if (FALSE === db_fetch_array(db_query("SELECT workingcopy as aegir_make_working_copy FROM {aegir_make_working_copy} WHERE vid = %d", $node->vid))) {
+    aegir_make_working_copy_insert($node);
+  }
+  else {
+    db_query("UPDATE {aegir_make_working_copy} SET workingcopy = %d WHERE vid = %d", $node->aegir_make_working_copy, $node->vid);
+  }
+
+}
+
+/**
+ * Implementation of hook_delete()
+ */
+function aegir_make_working_copy_delete($node) {
+  db_query("DELETE FROM {aegir_make_working_copy} WHERE nid = %d", $node->nid);
+}
+
+/**
+ * Implementation of hook_delete_revision()
+ */
+function aegir_make_working_copy_delete_revision($node) {
+  db_query("DELETE FROM {aegir_make_working_copy} WHERE vid = %d", $node->vid);
+}
+
+/**
+ * Implementation of hook_nodeapi()
+ */
+function aegir_make_working_copy_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if ($node->type == 'platform') {
+    switch ($op) {
+    case 'insert':
+        aegir_make_working_copy_insert($node);
+        break;
+      case 'update':
+        aegir_make_working_copy_update($node);
+        break;
+      case 'delete' :
+        aegir_make_working_copy_delete($node);
+        break;
+      case 'delete revision':
+        aegir_make_working_copy_delete_revision($node);
+        break;
+      case 'load':
+        $additions = db_fetch_array(db_query("SELECT workingcopy as aegir_make_working_copy FROM {aegir_make_working_copy} WHERE vid = %d", $node->vid));
+        return $additions;
+        break;
+    }
+  }
+}

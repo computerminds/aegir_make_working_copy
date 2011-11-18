@@ -1,0 +1,6 @@
+name = Aegir Drush Make Working Copy
+description = Allows admins to create a platform using the working copy option for drush make.
+package = Hosting
+dependencies[] = hosting_platform
+
+core = 6.x
